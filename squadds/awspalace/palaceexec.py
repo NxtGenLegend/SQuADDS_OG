@@ -92,7 +92,7 @@ eigen_sim = PALACE_Eigenmode_Simulation(name ='single_resonator_example_eigen', 
                                         sim_parent_directory = "",            #choose directory where mesh file, config file and HPC batch file will be saved
                                         mode = 'HPC',                                               #choose simulation mode 'HPC' or 'simPC'                                          
                                         meshing = 'GMSH',                                           #choose meshing 'GMSH' or 'COMSOL'
-                                        user_options = user_defined_options,                        #provide options chosen above
+                                        user_options = user_options,                        #provide options chosen above
                                         view_design_gmsh_gui = False,                               #view design in GMSH gui 
                                         create_files = True)                                        #create mesh, config and HPC batch files
 eigen_sim.add_metallic(1)

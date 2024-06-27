@@ -28,9 +28,6 @@
 # It takes the directory_name as a parameter and creates the directory under the parent simulation directory based on the simulation mode.
 # The _save_mesh_gmsh method saves the Gmsh mesh file. 
 # It checks if the create_files attribute is True and then saves the mesh file using the gmsh.write function.
-# The _save_mesh_comsol method saves the COMSOL mesh file. 
-# It checks if the create_files attribute is True and then saves the mesh file using the comsol_obj.save function. 
-# It also exports the mesh file in COMSOL format using the COMSOL export commands.
 # The _get_folder_prefix method returns the folder prefix for the simulation output directory. 
 # It checks if the input_dir attribute is not empty and returns the concatenation of input_dir, name, and a forward slash. 
 # Otherwise, it returns an empty string. The set_local_output_subdir method sets the local output subdirectory for the simulation. 

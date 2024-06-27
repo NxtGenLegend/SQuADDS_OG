@@ -31,7 +31,8 @@ class PALACE_Eigenmode_Simulation(PALACE_Model_RF_Base):
                 }
 
     #Parent Directory path
-    simPC_parent_simulation_dir = "/home/experiment/PALACE/Simulations/input"
+    # CUSTOM REMOVED
+    #simPC_parent_simulation_dir = "/home/experiment/PALACE/Simulations/input"
 
     #constructor
     def __init__(self, name, metal_design, sim_parent_directory, mode, meshing, user_options = {}, 
