@@ -45,7 +45,7 @@ class MetricStrategy(ABC):
 
         return pd.concat(distances)
     
-    lru_cache(maxsize=None)
+    @lru_cache(maxsize=None)
     def _optimize_calculate_chunk(self, target_params: dict, chunk: pd.DataFrame) -> pd.Series:
         return chunk.apply(lambda row: self.calculate(target_params, row), axis=1)
 
