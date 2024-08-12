@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
 from numpy import linalg as LA
+from functools import lru_cache
 
 logging.basicConfig(level=logging.INFO)
 
@@ -43,6 +44,10 @@ class MetricStrategy(ABC):
         )
 
         return pd.concat(distances)
+    
+    lru_cache(maxsize=None)
+    def _optimize_calculate_chunk(self, target_params: dict, chunk: pd.DataFrame) -> pd.Series:
+        return chunk.apply(lambda row: self.calculate(target_params, row), axis=1)
 
     def _calculate_chunk(self, target_params: dict, chunk: pd.DataFrame) -> pd.Series:
         """Helper method to calculate distances for a chunk of DataFrame rows."""
