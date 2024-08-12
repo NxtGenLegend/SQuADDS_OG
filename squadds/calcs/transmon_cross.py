@@ -10,6 +10,7 @@ from numba import jit, prange
 from pyEPR.calcs import Convert
 from scipy.constants import Planck, e, h, hbar, pi
 from scqubits.core.transmon import Transmon
+from functools import lru_cache
 
 from squadds.calcs.qubit import QubitHamiltonian
 
@@ -383,7 +384,7 @@ class TransmonCrossHamiltonian(QubitHamiltonian):
 
         return df
 
-
+    @lru_cache(maxsize=None)
     def add_cavity_coupled_H_params(self, num_chunks="auto",Z_0=50):
         """
         Add cavity-coupled Hamiltonian parameters to the dataframe.
