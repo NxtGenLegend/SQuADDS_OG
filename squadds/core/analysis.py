@@ -432,6 +432,127 @@ class Analyzer:
 
         return self.closest_df
 
+    def find_closest_optimized(self,
+                         target_params: dict,
+                         num_top: int,
+                         metric: str = 'Euclidean',
+                         display: bool = True,
+                         parallel: bool = False,
+                         num_cpu: str ="auto",
+                         skip_df_gen: bool = False):
+        """
+        Find the closest designs in the library based on the target parameters.
+
+        Args:
+            - target_params (dict): A dictionary containing the target parameters.
+            - num_top (int): The number of closest designs to retrieve.
+            - metric (str, optional): The distance metric to use for calculating distances. Defaults to 'Euclidean'.
+            - display (bool, optional): Whether to display warnings for parameters outside of the library bounds. Defaults to True.
+            - parallell (bool, optional): Whether to run metric calculation in a parallelized way
+            - num_cpu (str/int, optional): The number of CPUs to run a job over
+            - skip_df_gen (bool, optional): Whether to generate the df or run from memory
+
+        Returns:
+            - closest_df (DataFrame): A DataFrame containing the closest designs.
+
+        Raises:
+            - ValueError: If the specified metric is not supported or if num_top is bigger than the size of the library.
+            - ValueError: If the metric is invalid.
+        """
+        ### Checks
+        # Check for supported metric
+        if metric not in self.__supported_metrics__:
+            raise ValueError(f'`metric` must be one of the following: {self.__supported_metrics__}')
+
+        self.target_params = target_params
+
+        if self.selected_resonator_type == "half":
+            # remove the "resonator_type" key from self.target_params
+            self.target_params.pop("resonator_type")
+
+        if (skip_df_gen) or (not self.params_computed):
+            self._add_target_params_columns()
+        else:
+            print("Either `skip_df_gen` flag is set to True or all target params have been precomputed at an earlier step. Using `df` from memory. Please set this to False if `target_parameters` have changed.")
+            
+        target_params_list = list(self.target_params.keys())
+        filtered_df = self.df[target_params_list]  
+        self._outside_bounds(df=filtered_df, params=target_params, display=display)
+
+        # Set strategy dynamically based on the metric parameter
+        if metric == 'Euclidean':
+            self.set_metric_strategy(EuclideanMetric())
+        elif metric == 'Manhattan':
+            self.set_metric_strategy(ManhattanMetric())
+        elif metric == 'Chebyshev':
+            self.set_metric_strategy(ChebyshevMetric())
+        elif metric == 'Weighted Euclidean':
+            self.set_metric_strategy(WeightedEuclideanMetric(self.metric_weights))
+        elif metric == 'Custom':
+            self.set_metric_strategy(CustomMetric(self.custom_metric_func))
+
+        if not self.metric_strategy:
+            raise ValueError("Invalid metric.")
+
+        # Main logic
+
+        # Filter DataFrame based on target parameters that are string
+        for param, value in target_params.items():
+            if isinstance(value, str):
+                filtered_df = filtered_df[filtered_df[param] == value]
+
+
+        # if the filtered_df is empty, raise a User input error
+        if filtered_df.empty:
+            raise ValueError(f"No geometries found with the specified parameters:\n{target_params}\nPlease double-check your targets (especially ``resonator_type``) and try again.")
+
+        # Calculate distances
+        if not parallel:
+            distances = filtered_df.apply(lambda row: self.metric_strategy.calculate(target_params, row), axis=1)
+            sorted_indices = distances.nsmallest(num_top).index
+        else:
+            if num_cpu == "auto":
+                num_cpu = psutil.cpu_count(logical=True)
+            elif int(num_cpu) > psutil.cpu_count(logical=True):
+                raise ValueError(f"num_cpu must be less than or equal to {psutil.cpu_count(logical=True)}")
+            else:
+                num_cpu = 2
+                raise UserWarning("`num_chunk`s must be an integer greater than 0. Defaulting to 2.")
+
+            print(f"Using {num_cpu} CPUs for parallel processing")
+
+            distances = self.metric_strategy.calculate_in_parallel(target_params, filtered_df, num_jobs=num_cpu)
+            sorted_indices = pd.Series(distances).nsmallest(num_top).index
+
+        # Sort distances and get the closest ones
+        self.closest_df = self.df.loc[sorted_indices]
+
+        # set the closest design found flag
+        self.closest_design_found = True
+
+        if self.selected_resonator_type == "quarter":
+            # store the best design 
+            self.closest_df_entry = self.closest_df.iloc[0]
+            self.closest_design = self.closest_df.iloc[0]["design_options"]
+
+            if len(self.selected_system) == 2: #! TODO: make this more general
+                self.presimmed_closest_cpw_design = self.closest_df_entry["design_options_cavity_claw"]
+                self.presimmed_closest_qubit_design = self.closest_df_entry["design_options_qubit"]
+
+        elif self.selected_resonator_type == "half":
+            # retrieve the best designs
+            self.closest_qubit = self.qubit_df.iloc[self.closest_df.index_qc]
+            self.closest_coupler = self.coupler_df.iloc[self.closest_df.index_cplr]
+            self.closest_cavity = self.get_closest_cavity()
+
+            for merger_term in self.db.claw_merger_terms:
+                self.closest_qubit[merger_term] = self.closest_qubit['design_options'].map(lambda x: x['connection_pads']['readout'].get(merger_term))
+
+            self.closest_df = merge_dfs(self.closest_qubit, self.closest_cavity, self.db.claw_merger_terms)
+            self.closest_df['design_options'] = self.closest_df.apply(create_unified_design_options, axis=1)
+
+        return self.closest_df
+
     def get_closest_cavity(self):
         """
         Returns the closest cavity design.

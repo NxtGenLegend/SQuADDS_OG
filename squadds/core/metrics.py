@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 import pandas as pd
-from joblib import Parallel, delayed
+from joblib import Parallel, delayed, memory
 from numpy import linalg as LA
 from functools import lru_cache
 
@@ -40,35 +40,16 @@ class MetricStrategy(ABC):
         chunks = [df.iloc[i:i + chunk_size] for i in range(0, len(df), chunk_size)]
 
         distances = Parallel(n_jobs=num_jobs)(
-            delayed(self._calculate_chunk)(target_params, chunk) for chunk in chunks
+            delayed(self._optimized_calculate_chunk)(target_params, chunk) for chunk in chunks
         )
 
         return pd.concat(distances)
-    
-    def optimized_calculate_in_parallel(self, target_params: dict, df: pd.DataFrame, num_jobs: int = 4) -> pd.Series:
-        """Calculate distances in parallel.
-
-        Args:
-            target_params (dict): Dictionary of target parameters.
-            df (pd.DataFrame): The DataFrame containing rows to calculate distances for.
-            num_jobs (int): Number of jobs for parallel processing.
-
-        Returns:
-            pd.Series: Series of calculated distances.
-        """
-        chunk_size = int(np.ceil(len(df) / num_jobs))
-        chunks = [df.iloc[i:i + chunk_size] for i in range(0, len(df), chunk_size)]
-
-        distances = Parallel(n_jobs=num_jobs)(
-            delayed(self._optimize_calculate_chunk)(target_params, chunk) for chunk in chunks
-        )
-
-        return pd.concat(distances)
-    
-    @lru_cache(maxsize=None)
-    def _optimize_calculate_chunk(self, target_params: dict, chunk: pd.DataFrame) -> pd.Series:
+        
+    @lru_cache(maxsize=128)
+    def _optimized_calculate_chunk(self, target_params: dict, chunk: pd.DataFrame) -> pd.Series:
+        """Helper method to calculate distances for a chunk of DataFrame rows."""
         return chunk.apply(lambda row: self.calculate(target_params, row), axis=1)
-
+    
     def _calculate_chunk(self, target_params: dict, chunk: pd.DataFrame) -> pd.Series:
         """Helper method to calculate distances for a chunk of DataFrame rows."""
         return chunk.apply(lambda row: self.calculate(target_params, row), axis=1)
